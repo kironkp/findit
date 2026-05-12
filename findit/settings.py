@@ -29,7 +29,17 @@ if not 'ON_HEROKU' in os.environ:
     DEBUG = True
 SERPER_API_KEY = env('SERPER_API_KEY')
 OPENAI_API_KEY = env('OPENAI_API_KEY')
-ALLOWED_HOSTS = ["*"] if DEBUG else env.list('ALLOWED_HOSTS', default=[])
+if DEBUG:
+    ALLOWED_HOSTS = ['*']
+elif 'ON_HEROKU' in os.environ:
+    # Match any *.herokuapp.com subdomain; also honor an explicit ALLOWED_HOSTS
+    # env var if the user sets one (e.g. for a custom domain).
+    ALLOWED_HOSTS = ['.herokuapp.com'] + env.list('ALLOWED_HOSTS', default=[])
+else:
+    ALLOWED_HOSTS = env.list('ALLOWED_HOSTS', default=[])
+
+# CSRF: Django 4+ requires the full origin (scheme + host) for cross-site POSTs.
+CSRF_TRUSTED_ORIGINS = ['https://*.herokuapp.com'] if 'ON_HEROKU' in os.environ else []
 
 
 INSTALLED_APPS = [
