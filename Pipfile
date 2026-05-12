@@ -12,6 +12,8 @@ python-dotenv = "*"
 whitenoise = "*"
 gunicorn = "*"
 dj-database-url = "*"
+requests = "*"
+openai = "*"
 
 [dev-packages]
 
