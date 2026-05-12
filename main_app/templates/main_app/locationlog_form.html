@@ -1,0 +1,28 @@
+{% extends 'base.html' %}
+{% load static %}
+{% block title %}Edit move · FindIt{% endblock %}
+
+{% block content %}
+<section class="page-header">
+  <div>
+    <h1>Edit move</h1>
+    <p class="muted">Fix a wrong location, note, or return date for <a href="{% url 'item-detail' object.item.id %}">{{ object.item.name }}</a>.</p>
+  </div>
+</section>
+
+<form method="post" class="big-form" autocomplete="off">
+  {% csrf_token %}
+  {% for field in form %}
+    <div class="field {% if field.errors %}has-error{% endif %}">
+      <label for="{{ field.id_for_label }}">{{ field.label }}{% if field.field.required %} <span aria-hidden="true">*</span>{% endif %}</label>
+      {{ field }}
+      {% if field.help_text %}<p class="help">{{ field.help_text }}</p>{% endif %}
+      {% if field.errors %}<p class="error">{{ field.errors|join:", " }}</p>{% endif %}
+    </div>
+  {% endfor %}
+  <div class="form-actions">
+    <a href="{% url 'item-detail' object.item.id %}" class="btn ghost">Cancel</a>
+    <button type="submit" class="btn primary">Save changes</button>
+  </div>
+</form>
+{% endblock %}

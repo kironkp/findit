@@ -1,0 +1,19 @@
+{% extends 'base.html' %}
+{% load static %}
+{% block title %}Delete move · FindIt{% endblock %}
+
+{% block content %}
+<section class="confirm-card">
+  <img src="{% static 'images/empty-state.svg' %}" alt="" aria-hidden="true" />
+  <h1>Delete this move?</h1>
+  <p class="muted">
+    Removing <strong>{{ object.moved_at|date:"M j, Y" }} → {{ object.location.name|default:"unknown" }}</strong>
+    from {{ object.item.name }}'s history. The item itself stays put.
+  </p>
+  <form method="post" class="confirm-actions">
+    {% csrf_token %}
+    <a href="{% url 'item-detail' object.item.id %}" class="btn secondary">Cancel</a>
+    <button type="submit" class="btn danger">Yes, delete</button>
+  </form>
+</section>
+{% endblock %}

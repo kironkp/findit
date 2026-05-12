@@ -1,0 +1,326 @@
+{% extends 'base.html' %}
+{% load static %}
+{% block title %}Add many things · FindIt{% endblock %}
+
+{% block content %}
+<section class="page-header">
+  <div>
+    <h1>Add many things</h1>
+    <p class="muted">Talk or type — we'll pull out each item and where it lives.</p>
+  </div>
+  <a href="{% url 'item-index' %}" class="btn ghost">Cancel</a>
+</section>
+
+{% if not ai_enabled %}
+  <div class="panel" style="border-left: 4px solid var(--warn);">
+    <p><strong>AI is off.</strong> Set <code>OPENAI_API_KEY</code> in <code>.env</code> and restart the server to enable dictation and parsing.</p>
+  </div>
+{% endif %}
+
+<section class="bulk-capture" id="bulk-capture">
+  <label class="bulk-label" for="bulk-transcript">What do you want to add?</label>
+  <textarea id="bulk-transcript"
+            rows="6"
+            placeholder="e.g. I want to add a Fender Strat to Studio A, a sustain pedal in the Wooden Crate, and a drill set in the garage on the Left Wall."></textarea>
+
+  <div class="bulk-actions">
+    <button type="button" id="mic-btn" class="btn secondary" {% if not ai_enabled %}disabled{% endif %}>
+      <span class="mic-icon" aria-hidden="true">🎤</span>
+      <span class="mic-label">Record</span>
+    </button>
+    <span id="mic-status" class="muted small" aria-live="polite"></span>
+    <button type="button" id="parse-btn" class="btn primary" {% if not ai_enabled %}disabled{% endif %}>Parse with AI →</button>
+  </div>
+</section>
+
+<section class="bulk-preview" id="bulk-preview" hidden>
+  <header class="bulk-preview-header">
+    <h2>Found <span id="preview-count">0</span> things</h2>
+    <p class="muted small">Edit anything that's off. Toggle Create / Existing per row. Use <code>&gt;</code> to nest a new sub-location (e.g. <code>Garage &gt; Indigo Box</code>).</p>
+  </header>
+  <div class="bulk-preview-rows" id="preview-rows"></div>
+  <div class="bulk-preview-actions">
+    <button type="button" id="preview-back" class="btn ghost">← Back to text</button>
+    <button type="button" id="preview-add-row" class="btn secondary">+ Add row</button>
+    <button type="button" id="preview-save" class="btn primary">Save all</button>
+  </div>
+  <p id="bulk-error" class="error" hidden></p>
+</section>
+
+<template id="row-template">
+  <div class="bulk-row">
+    <input type="text" class="row-name" placeholder="Item name" />
+    <input type="text" class="row-detail" placeholder="Detail (optional)" />
+    <input type="number" class="row-qty" min="1" value="1" aria-label="Quantity" />
+    <select class="row-loc-kind" aria-label="Location source">
+      <option value="none">— No location —</option>
+      <option value="existing">Existing</option>
+      <option value="new">Create new</option>
+    </select>
+    <select class="row-loc-existing" aria-label="Existing location">
+      {% for loc in locations %}
+        <option value="{{ loc.id }}">{{ loc.breadcrumb }}</option>
+      {% endfor %}
+    </select>
+    <input type="text" class="row-loc-new" placeholder="e.g. Garage &gt; Indigo Box" title="Use &gt; to nest (e.g. Garage &gt; Indigo)" />
+    <button type="button" class="row-remove btn ghost small" aria-label="Remove row">✕</button>
+  </div>
+</template>
+
+<script>
+(function () {
+  const csrf = (document.cookie.match(/csrftoken=([^;]+)/) || [])[1] || '';
+  const textarea = document.getElementById('bulk-transcript');
+  const micBtn = document.getElementById('mic-btn');
+  const micLabel = micBtn?.querySelector('.mic-label');
+  const micStatus = document.getElementById('mic-status');
+  const parseBtn = document.getElementById('parse-btn');
+  const captureSec = document.getElementById('bulk-capture');
+  const previewSec = document.getElementById('bulk-preview');
+  const rowsEl = document.getElementById('preview-rows');
+  const countEl = document.getElementById('preview-count');
+  const tpl = document.getElementById('row-template');
+  const errorEl = document.getElementById('bulk-error');
+
+  // ---------- Recording (MediaRecorder + Whisper) ----------
+  // Use a timeslice so audio is delivered as chunks (more robust on Safari for long
+  // recordings — without it, Safari can truncate long single-blob captures).
+  const RECORD_TIMESLICE_MS = 1000;
+  const MAX_RECORD_SECONDS = 600;  // 10 min hard cap (well under Whisper's 25 MB limit)
+
+  function pickMimeType() {
+    const candidates = [
+      'audio/mp4',           // Safari
+      'audio/webm;codecs=opus',
+      'audio/webm',
+      'audio/ogg;codecs=opus',
+    ];
+    for (const t of candidates) {
+      if (window.MediaRecorder && MediaRecorder.isTypeSupported(t)) return t;
+    }
+    return '';  // let the browser pick
+  }
+
+  function fmtBytes(n) {
+    if (n < 1024) return n + ' B';
+    if (n < 1024 * 1024) return (n / 1024).toFixed(0) + ' KB';
+    return (n / (1024 * 1024)).toFixed(1) + ' MB';
+  }
+  function fmtTime(s) {
+    const m = Math.floor(s / 60), r = s % 60;
+    return m + ':' + String(r).padStart(2, '0');
+  }
+
+  let recorder = null;
+  let chunks = [];
+  let recording = false;
+  let startedAt = 0;
+  let tickHandle = 0;
+  let stopTimeoutHandle = 0;
+
+  async function startRecording() {
+    if (!navigator.mediaDevices || !window.MediaRecorder) {
+      micStatus.textContent = 'Recording not supported in this browser. Type instead.';
+      return;
+    }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      chunks = [];
+      const mime = pickMimeType();
+      recorder = mime ? new MediaRecorder(stream, { mimeType: mime }) : new MediaRecorder(stream);
+      recorder.ondataavailable = e => { if (e.data && e.data.size > 0) chunks.push(e.data); };
+      recorder.onerror = e => {
+        micStatus.textContent = 'Recorder error: ' + (e.error && e.error.name || 'unknown');
+      };
+      recorder.onstop = async () => {
+        clearInterval(tickHandle);
+        clearTimeout(stopTimeoutHandle);
+        stream.getTracks().forEach(t => t.stop());
+        const usedMime = recorder.mimeType || mime || 'audio/webm';
+        const blob = new Blob(chunks, { type: usedMime });
+        const dur = Math.round((Date.now() - startedAt) / 1000);
+        if (blob.size === 0) {
+          micStatus.textContent = `No audio captured (${dur}s recorded — chunks may have been dropped).`;
+          return;
+        }
+        const ext = usedMime.includes('mp4') ? 'mp4' : usedMime.includes('ogg') ? 'ogg' : 'webm';
+        micStatus.textContent = `Transcribing ${fmtBytes(blob.size)} (${fmtTime(dur)})…`;
+        const fd = new FormData();
+        fd.append('audio', blob, `audio.${ext}`);
+        try {
+          const resp = await fetch('{% url "item-bulk-transcribe" %}', {
+            method: 'POST',
+            headers: { 'X-CSRFToken': csrf },
+            body: fd,
+          });
+          const data = await resp.json();
+          if (!resp.ok) throw new Error(data.error || 'Transcription failed');
+          textarea.value = (textarea.value ? textarea.value + ' ' : '') + data.transcript;
+          micStatus.textContent = `Done. ${fmtBytes(blob.size)}, ${fmtTime(dur)} recorded.`;
+        } catch (err) {
+          micStatus.textContent = err.message;
+        }
+      };
+      recorder.start(RECORD_TIMESLICE_MS);
+      startedAt = Date.now();
+      recording = true;
+      micLabel.textContent = 'Stop';
+      micBtn.classList.add('recording');
+      micStatus.textContent = 'Recording 0:00 — speak now.';
+      tickHandle = setInterval(() => {
+        const s = Math.round((Date.now() - startedAt) / 1000);
+        micStatus.textContent = `Recording ${fmtTime(s)} — tap Stop when done.`;
+      }, 1000);
+      stopTimeoutHandle = setTimeout(() => {
+        if (recording) {
+          stopRecording();
+          micStatus.textContent = `Hit ${MAX_RECORD_SECONDS}s safety cap — transcribing what we have…`;
+        }
+      }, MAX_RECORD_SECONDS * 1000);
+    } catch (err) {
+      micStatus.textContent = 'Mic permission denied or unavailable.';
+    }
+  }
+
+  function stopRecording() {
+    if (recorder && recording) {
+      try { recorder.requestData(); } catch (e) {}
+      recorder.stop();
+      recording = false;
+      micLabel.textContent = 'Record';
+      micBtn.classList.remove('recording');
+    }
+  }
+
+  micBtn?.addEventListener('click', () => {
+    if (recording) stopRecording();
+    else startRecording();
+  });
+
+  // ---------- Parse (GPT) ----------
+  parseBtn?.addEventListener('click', async () => {
+    const text = textarea.value.trim();
+    if (!text) { textarea.focus(); return; }
+    parseBtn.disabled = true;
+    parseBtn.textContent = 'Parsing…';
+    try {
+      const resp = await fetch('{% url "item-bulk-parse" %}', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf },
+        body: JSON.stringify({ text }),
+      });
+      const data = await resp.json();
+      if (!resp.ok) throw new Error(data.error || 'Parse failed');
+      renderPreview(data.items || []);
+    } catch (err) {
+      alert(err.message);
+    } finally {
+      parseBtn.disabled = false;
+      parseBtn.textContent = 'Parse with AI →';
+    }
+  });
+
+  // ---------- Preview rows ----------
+  function makeRow(item) {
+    const node = tpl.content.firstElementChild.cloneNode(true);
+    node.querySelector('.row-name').value = item.name || '';
+    node.querySelector('.row-detail').value = item.distinguishing_detail || '';
+    node.querySelector('.row-qty').value = item.quantity || 1;
+
+    const kind = node.querySelector('.row-loc-kind');
+    const existing = node.querySelector('.row-loc-existing');
+    const newInput = node.querySelector('.row-loc-new');
+
+    if (item.matched_location_id) {
+      kind.value = 'existing';
+      existing.value = String(item.matched_location_id);
+    } else if (item.new_location_name) {
+      kind.value = 'new';
+      newInput.value = item.new_location_name;
+    } else {
+      kind.value = 'none';
+    }
+    // Remember the AI's per-segment icon suggestions for new path segments; reused on save.
+    if (item.location_icons && typeof item.location_icons === 'object') {
+      node.dataset.locationIcons = JSON.stringify(item.location_icons);
+    }
+    updateRowVisibility(node);
+    kind.addEventListener('change', () => updateRowVisibility(node));
+    node.querySelector('.row-remove').addEventListener('click', () => node.remove());
+    return node;
+  }
+
+  function updateRowVisibility(row) {
+    const k = row.querySelector('.row-loc-kind').value;
+    row.querySelector('.row-loc-existing').hidden = (k !== 'existing');
+    row.querySelector('.row-loc-new').hidden = (k !== 'new');
+  }
+
+  function renderPreview(items) {
+    rowsEl.innerHTML = '';
+    items.forEach(it => rowsEl.appendChild(makeRow(it)));
+    countEl.textContent = items.length;
+    captureSec.hidden = true;
+    previewSec.hidden = false;
+    errorEl.hidden = true;
+    if (!items.length) {
+      const empty = document.createElement('p');
+      empty.className = 'muted';
+      empty.textContent = "Didn't find any items. Try rephrasing, then parse again.";
+      rowsEl.appendChild(empty);
+    }
+  }
+
+  document.getElementById('preview-back').addEventListener('click', () => {
+    previewSec.hidden = true;
+    captureSec.hidden = false;
+  });
+
+  document.getElementById('preview-add-row').addEventListener('click', () => {
+    rowsEl.appendChild(makeRow({}));
+  });
+
+  // ---------- Save ----------
+  document.getElementById('preview-save').addEventListener('click', async () => {
+    const rows = [];
+    rowsEl.querySelectorAll('.bulk-row').forEach(row => {
+      const name = row.querySelector('.row-name').value.trim();
+      if (!name) return;
+      const kind = row.querySelector('.row-loc-kind').value;
+      rows.push({
+        name,
+        distinguishing_detail: row.querySelector('.row-detail').value.trim(),
+        quantity: parseInt(row.querySelector('.row-qty').value || '1', 10) || 1,
+        location_kind: kind,
+        location_id: kind === 'existing' ? parseInt(row.querySelector('.row-loc-existing').value, 10) : null,
+        new_location_name: kind === 'new' ? row.querySelector('.row-loc-new').value.trim() : '',
+        new_location_icons: kind === 'new' && row.dataset.locationIcons ? JSON.parse(row.dataset.locationIcons) : {},
+      });
+    });
+    if (!rows.length) {
+      errorEl.textContent = 'Add at least one row with a name.';
+      errorEl.hidden = false;
+      return;
+    }
+    const btn = document.getElementById('preview-save');
+    btn.disabled = true;
+    btn.textContent = 'Saving…';
+    try {
+      const resp = await fetch('{% url "item-bulk-save" %}', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf },
+        body: JSON.stringify({ items: rows }),
+      });
+      const data = await resp.json();
+      if (!resp.ok) throw new Error(data.error || 'Save failed');
+      window.location.href = data.redirect || '{% url "item-index" %}';
+    } catch (err) {
+      errorEl.textContent = err.message;
+      errorEl.hidden = false;
+      btn.disabled = false;
+      btn.textContent = 'Save all';
+    }
+  });
+})();
+</script>
+{% endblock %}

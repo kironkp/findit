@@ -1,0 +1,236 @@
+{% extends 'base.html' %}
+{% load static %}
+{% block title %}FindIt — Stop losing your stuff{% endblock %}
+
+{% block content %}
+{% if user.is_authenticated %}
+  <section class="dashboard">
+    <div class="dashboard-greeting">
+      <h1>Welcome back, {{ user.username }}.</h1>
+      <p class="lead">Here's what's going on in your collection.</p>
+    </div>
+
+    <section class="collection-tree">
+      <header class="collection-tree-header">
+        <h2>Your collection</h2>
+        <p class="muted small">{{ item_count }} thing{{ item_count|pluralize }} across {{ location_count }} location{{ location_count|pluralize }}</p>
+      </header>
+      {% if collection_tree or orphan_items %}
+        <div class="ctree-wrap">
+          <div class="ctree-forest">
+            {% for node in collection_tree %}
+              <ul class="ctree">
+                {% include 'main_app/_collection_node.html' with node=node %}
+              </ul>
+            {% endfor %}
+            {% if orphan_items %}
+              <ul class="ctree">
+                <li>
+                  <span class="ctree-node ctree-location ctree-orphan-root" data-loc-id="">Unsorted</span>
+                  <ul>
+                    {% for item in orphan_items %}
+                      <li>
+                        <a href="{% url 'item-detail' item.id %}"
+                           class="ctree-node ctree-item"
+                           draggable="true"
+                           data-item-id="{{ item.id }}">
+                          {{ item.name }}{% if item.quantity > 1 %} <span class="muted small">×{{ item.quantity }}</span>{% endif %}
+                        </a>
+                      </li>
+                    {% endfor %}
+                  </ul>
+                </li>
+              </ul>
+            {% endif %}
+          </div>
+        </div>
+      {% else %}
+        <p class="muted">Nothing yet — <a href="{% url 'item-create' %}">add your first thing</a> to start your tree.</p>
+      {% endif %}
+    </section>
+
+    <div class="dashboard-grid">
+      <section class="panel">
+        <h2>Recently moved</h2>
+        {% if recent_moves %}
+          <ul class="list-plain">
+            {% for log in recent_moves %}
+              <li class="move-line">
+                <a href="{% url 'item-detail' log.item.id %}">{{ log.item.name }}</a>
+                <span class="muted">→ {{ log.location.name|default:"unknown" }}</span>
+                <time>{{ log.moved_at|date:"M j" }}</time>
+              </li>
+            {% endfor %}
+          </ul>
+        {% else %}
+          <p class="muted">Nothing has moved yet. Once you start logging things, the last few moves show up here so you can spot mistakes.</p>
+        {% endif %}
+      </section>
+
+      <section class="panel">
+        <h2>Lent out — due back</h2>
+        {% if due_back %}
+          <ul class="list-plain">
+            {% for log in due_back %}
+              <li class="move-line">
+                <a href="{% url 'item-detail' log.item.id %}">{{ log.item.name }}</a>
+                <span class="muted">with {{ log.location.name }}</span>
+                <time>by {{ log.return_by|date:"M j" }}</time>
+              </li>
+            {% endfor %}
+          </ul>
+        {% else %}
+          <p class="muted">Nothing currently lent out with a return date.</p>
+        {% endif %}
+      </section>
+    </div>
+
+    <div class="dashboard-cta">
+      <a href="{% url 'item-create' %}" class="btn primary">Add a thing</a>
+      <a href="{% url 'location-create' %}" class="btn secondary">Add a location</a>
+    </div>
+  </section>
+
+  <script>
+  (function () {
+    const tree = document.querySelector('.collection-tree');
+    if (!tree) return;
+    const csrf = (document.cookie.match(/csrftoken=([^;]+)/) || [])[1] || '';
+    let dragSrc = null;   // {kind: 'loc'|'item', id: number}
+
+    function nodeData(el) {
+      if (!el || !el.classList.contains('ctree-node')) return null;
+      if (el.dataset.itemId) return { kind: 'item', id: el.dataset.itemId };
+      if (el.dataset.locId)  return { kind: 'loc',  id: el.dataset.locId };
+      return null;
+    }
+
+    // Locations are valid drop targets. We don't allow dropping onto an item
+    // or onto the dragged location itself (cycle check is enforced server-side).
+    function isValidTarget(targetEl) {
+      if (!dragSrc) return false;
+      if (!targetEl.classList.contains('ctree-location')) return false;
+      const t = nodeData(targetEl);
+      if (!t) return false;
+      if (dragSrc.kind === 'loc' && String(dragSrc.id) === String(t.id)) return false;
+      return true;
+    }
+
+    tree.addEventListener('dragstart', e => {
+      const node = e.target.closest('.ctree-node');
+      const d = nodeData(node);
+      if (!d) { e.preventDefault(); return; }
+      // Items and non-orphan locations are draggable; the "Unsorted" pseudo-root has no id.
+      if (d.kind === 'loc' && !d.id) { e.preventDefault(); return; }
+      dragSrc = d;
+      node.classList.add('dragging');
+      // Set drag data so Safari/Firefox initiate the drag; we read from dragSrc instead.
+      try { e.dataTransfer.setData('text/plain', `${d.kind}:${d.id}`); } catch (_) {}
+      e.dataTransfer.effectAllowed = 'move';
+    });
+
+    tree.addEventListener('dragend', e => {
+      tree.querySelectorAll('.dragging,.drop-target').forEach(n => {
+        n.classList.remove('dragging', 'drop-target');
+      });
+      dragSrc = null;
+    });
+
+    tree.addEventListener('dragover', e => {
+      const target = e.target.closest('.ctree-node');
+      if (target && isValidTarget(target)) {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+      }
+    });
+
+    tree.addEventListener('dragenter', e => {
+      const target = e.target.closest('.ctree-node');
+      if (target && isValidTarget(target)) target.classList.add('drop-target');
+    });
+
+    tree.addEventListener('dragleave', e => {
+      const target = e.target.closest('.ctree-node');
+      if (target) target.classList.remove('drop-target');
+    });
+
+    tree.addEventListener('drop', async e => {
+      const target = e.target.closest('.ctree-node');
+      if (!target || !isValidTarget(target)) return;
+      e.preventDefault();
+      target.classList.remove('drop-target');
+      const src = dragSrc;
+      const tgt = nodeData(target);
+      if (!src || !tgt) return;
+
+      try {
+        let url, body;
+        if (src.kind === 'item') {
+          url = `/items/${src.id}/move/quick/`;
+          body = `location_id=${encodeURIComponent(tgt.id)}`;
+        } else {
+          url = `/locations/${src.id}/reparent/`;
+          body = `parent_id=${encodeURIComponent(tgt.id)}`;
+        }
+        const resp = await fetch(url, {
+          method: 'POST',
+          headers: {
+            'X-CSRFToken': csrf,
+            'Content-Type': 'application/x-www-form-urlencoded',
+          },
+          body,
+        });
+        if (!resp.ok) {
+          const data = await resp.json().catch(() => ({}));
+          alert(data.error || 'Move failed');
+          return;
+        }
+        window.location.reload();
+      } catch (err) {
+        alert('Move failed: ' + err.message);
+      }
+    });
+  })();
+  </script>
+{% else %}
+  <section class="hero">
+    <div class="hero-text">
+      <h1>You don't lose things. <br/>You misplace them.</h1>
+      <p class="lead">FindIt is a quiet little organizer for the stuff you can never find when you need it. Snap a photo, drop it on a shelf, log it once. Future-you says thanks.</p>
+      <div class="hero-actions">
+        <a href="{% url 'signup' %}" class="btn primary large">Get started</a>
+        <a href="{% url 'login' %}" class="btn ghost large">I have an account</a>
+      </div>
+    </div>
+    <div class="hero-art" aria-hidden="true">
+      <img src="{% static 'images/hero-illustration.svg' %}" alt="" />
+    </div>
+  </section>
+
+  <section class="features">
+    <h2>Built around how you actually look for things</h2>
+    <div class="feature-grid">
+      <article class="feature">
+        <img src="{% static 'images/feature-search.svg' %}" alt="" aria-hidden="true" />
+        <h3>Search the way you remember</h3>
+        <p>Find by name, description, or tag. No need to remember what you called it.</p>
+      </article>
+      <article class="feature">
+        <img src="{% static 'images/feature-nest.svg' %}" alt="" aria-hidden="true" />
+        <h3>Locations inside locations</h3>
+        <p>Passport in the safe in the closet in the bedroom. FindIt gets it.</p>
+      </article>
+      <article class="feature">
+        <img src="{% static 'images/feature-trust.svg' %}" alt="" aria-hidden="true" />
+        <h3>Self-healing data</h3>
+        <p>Every lookup asks "Found it here?" — so the app gets more accurate, not less.</p>
+      </article>
+      <article class="feature">
+        <img src="{% static 'images/feature-lend.svg' %}" alt="" aria-hidden="true" />
+        <h3>Lend without losing</h3>
+        <p>Mark a person as a location. Set a return date. Get a quiet reminder.</p>
+      </article>
+    </div>
+  </section>
+{% endif %}
+{% endblock %}

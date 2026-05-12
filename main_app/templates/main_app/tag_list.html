@@ -1,0 +1,35 @@
+{% extends 'base.html' %}
+{% load static %}
+{% block title %}Tags · FindIt{% endblock %}
+
+{% block content %}
+<section class="page-header">
+  <div>
+    <h1>Tags</h1>
+    <p class="muted">A shared catalog. Use the same tag across all your stuff.</p>
+  </div>
+  <a href="{% url 'tag-create' %}" class="btn primary">+ Add tag</a>
+</section>
+
+<section class="card-grid tag-grid">
+  {% for tag in tags %}
+    <article class="tag-card" style="--tag-color: {{ tag.color }}">
+      <span class="tag-swatch" aria-hidden="true"></span>
+      <h3><a href="{% url 'tag-detail' tag.id %}">{{ tag.name }}</a></h3>
+      <p class="muted">{{ tag.items.count }} item{{ tag.items.count|pluralize }}</p>
+      <div class="tag-card-actions">
+        <a href="{% url 'tag-detail' tag.id %}" class="btn ghost small">View</a>
+        <a href="{% url 'tag-update' tag.id %}" class="btn ghost small">Edit</a>
+        <a href="{% url 'tag-delete' tag.id %}" class="btn ghost small danger">Delete</a>
+      </div>
+    </article>
+  {% empty %}
+    <div class="empty-state">
+      <img src="{% static 'images/empty-state.svg' %}" alt="" aria-hidden="true" />
+      <h2>No tags yet</h2>
+      <p>Try fragile, electronics, seasonal, valuable. You'll use them all.</p>
+      <a href="{% url 'tag-create' %}" class="btn primary">Create your first tag</a>
+    </div>
+  {% endfor %}
+</section>
+{% endblock %}

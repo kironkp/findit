@@ -1,0 +1,26 @@
+{% load icon_tags %}
+<li>
+  <a href="{% url 'location-detail' node.id %}"
+     class="ctree-node ctree-location"
+     draggable="true"
+     data-loc-id="{{ node.id }}">
+    <span class="loc-name">{% location_icon node.icon %}{{ node.name }}</span>
+  </a>
+  {% if node.items_list or node.children_list %}
+    <ul>
+      {% for child in node.children_list %}
+        {% include 'main_app/_collection_node.html' with node=child %}
+      {% endfor %}
+      {% for item in node.items_list %}
+        <li>
+          <a href="{% url 'item-detail' item.id %}"
+             class="ctree-node ctree-item"
+             draggable="true"
+             data-item-id="{{ item.id }}">
+            {{ item.name }}{% if item.quantity > 1 %} <span class="muted small">×{{ item.quantity }}</span>{% endif %}
+          </a>
+        </li>
+      {% endfor %}
+    </ul>
+  {% endif %}
+</li>

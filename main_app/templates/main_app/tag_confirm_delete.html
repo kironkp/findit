@@ -1,0 +1,16 @@
+{% extends 'base.html' %}
+{% load static %}
+{% block title %}Delete {{ object.name }}?{% endblock %}
+
+{% block content %}
+<section class="confirm-card">
+  <img src="{% static 'images/empty-state.svg' %}" alt="" aria-hidden="true" />
+  <h1>Delete tag "{{ object.name }}"?</h1>
+  <p class="muted">It will be removed from any items currently using it. Items themselves will stay put.</p>
+  <form method="post" class="confirm-actions">
+    {% csrf_token %}
+    <a href="{% url 'tag-index' %}" class="btn secondary">Cancel</a>
+    <button type="submit" class="btn danger">Yes, delete</button>
+  </form>
+</section>
+{% endblock %}

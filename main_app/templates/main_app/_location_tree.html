@@ -1,0 +1,33 @@
+{% load static icon_tags %}
+<ul class="loc-tree">
+  {% for node in nodes %}
+    <li class="loc-tree-node">
+      {% if node.children_list %}
+        <details open>
+          <summary>
+            <div class="tree-drop-zone" data-location-id="{{ node.id }}">
+              <button type="button"
+                      class="loc-tree-link loc-name"
+                      hx-get="{% url 'location-panel' node.id %}"
+                      hx-target="#location-panel"
+                      hx-swap="innerHTML">
+                {% location_icon node.icon %}{{ node.name }}
+              </button>
+            </div>
+          </summary>
+          {% include 'main_app/_location_tree.html' with nodes=node.children_list %}
+        </details>
+      {% else %}
+        <div class="tree-drop-zone" data-location-id="{{ node.id }}">
+          <button type="button"
+                  class="loc-tree-link leaf loc-name"
+                  hx-get="{% url 'location-panel' node.id %}"
+                  hx-target="#location-panel"
+                  hx-swap="innerHTML">
+            {% location_icon node.icon %}{{ node.name }}
+          </button>
+        </div>
+      {% endif %}
+    </li>
+  {% endfor %}
+</ul>

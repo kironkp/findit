@@ -1,0 +1,54 @@
+{% extends 'base.html' %}
+{% load static icon_tags %}
+{% block title %}{{ location.name }} · FindIt{% endblock %}
+
+{% block content %}
+<section class="page-header">
+  <div>
+    <h1 class="loc-name">{% location_icon location.icon %}{{ location.name }}</h1>
+    <p class="muted">{{ location.breadcrumb }}</p>
+    {% if location.is_person %}<span class="badge soft">person</span>{% endif %}
+  </div>
+  <div class="detail-actions">
+    <a href="{% url 'location-update' location.id %}" class="btn secondary">Edit</a>
+    <a href="{% url 'location-delete' location.id %}" class="btn danger">Delete</a>
+  </div>
+</section>
+
+{% if location.notes %}
+  <section class="panel"><p>{{ location.notes }}</p></section>
+{% endif %}
+
+<section class="panel">
+  <h2>Sub-locations</h2>
+  {% if children %}
+    <ul class="list-plain">
+      {% for child in children %}
+        <li><a href="{% url 'location-detail' child.id %}" class="loc-name">{% location_icon child.icon %}{{ child.name }}</a></li>
+      {% endfor %}
+    </ul>
+  {% else %}
+    <p class="muted">No sub-locations yet. Add one to nest things deeper.</p>
+  {% endif %}
+  <p class="panel-action"><a href="{% url 'location-create' %}?parent={{ location.id }}" class="btn primary">+ Sub-location</a></p>
+</section>
+
+
+<section class="panel">
+  <h2>Things here</h2>
+  {% if items %}
+    <ul class="list-plain">
+      {% for item in items %}
+        <li class="move-line">
+          <a href="{% url 'item-detail' item.id %}">{{ item.name }}</a>
+          {% if item.distinguishing_detail %}<span class="muted">({{ item.distinguishing_detail }})</span>{% endif %}
+          {% if item.quantity > 1 %}<span class="muted">×{{ item.quantity }}</span>{% endif %}
+        </li>
+      {% endfor %}
+    </ul>
+  {% else %}
+    <p class="muted">Nothing is currently in this location.</p>
+  {% endif %}
+  <p class="panel-action"><a href="{% url 'item-create' %}?location={{ location.id }}" class="btn primary">+ Add item</a></p>
+</section>
+{% endblock %}

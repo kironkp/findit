@@ -1,0 +1,183 @@
+{% extends 'base.html' %}
+{% load static %}
+{% block title %}Map · FindIt{% endblock %}
+
+{% block head %}
+<script>
+  function getCsrfToken() {
+    const m = document.cookie.match(/csrftoken=([^;]+)/);
+    return m ? m[1] : '';
+  }
+
+  function moveItem(itemId, locationId, currentLocationId) {
+    return fetch(`/items/${itemId}/move/quick/`, {
+      method: 'POST',
+      headers: {
+        'X-CSRFToken': getCsrfToken(),
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: `location_id=${encodeURIComponent(locationId)}`,
+    }).then(resp => {
+      if (!resp.ok) throw new Error('Move failed');
+      if (currentLocationId) {
+        htmx.ajax('GET', `/locations/${currentLocationId}/panel/`, '#location-panel');
+      }
+    });
+  }
+
+  function getCurrentLocationId() {
+    const el = document.querySelector('.item-chip-list');
+    return el ? el.dataset.locationId : null;
+  }
+
+  function makeDropTarget(el) {
+    if (el.dataset.dropInit) return;
+    el.dataset.dropInit = '1';
+    new Sortable(el, {
+      group: { name: 'findit-items', put: true },
+      sort: false,
+      animation: 150,
+      onAdd: function (evt) {
+        const itemId = evt.item.dataset.itemId;
+        const targetId = evt.to.dataset.locationId;
+        evt.item.remove();  // panel will refresh
+        moveItem(itemId, targetId, getCurrentLocationId()).catch(err => {
+          console.error(err);
+          alert('Could not move item.');
+        });
+      },
+    });
+  }
+
+  function initPanelSortables() {
+    const itemList = document.querySelector('.item-chip-list');
+    if (itemList) {
+      new Sortable(itemList, {
+        group: { name: 'findit-items', pull: 'clone', put: false },
+        sort: false,
+        animation: 150,
+        handle: '.drag-handle',
+      });
+    }
+    document.querySelectorAll('.subloc-card').forEach(makeDropTarget);
+  }
+
+  function initTreeDropZones() {
+    document.querySelectorAll('.tree-drop-zone').forEach(makeDropTarget);
+  }
+
+  document.addEventListener('DOMContentLoaded', function () {
+    initTreeDropZones();
+    initPanelSortables();
+    document.body.addEventListener('htmx:afterSwap', function (evt) {
+      if (evt.detail.target && evt.detail.target.id === 'location-panel') {
+        initPanelSortables();
+      }
+    });
+  });
+</script>
+{% endblock %}
+
+{% block content %}
+<section class="page-header">
+  <div>
+    <h1>Map</h1>
+    <p class="muted">Browse your locations as a tree. Click a location to see what's inside.</p>
+  </div>
+  <a href="{% url 'location-create' %}" class="btn primary">+ Add location</a>
+</section>
+
+<div class="loc-map">
+  <aside class="loc-map-tree" aria-label="Location tree">
+    {% if location_roots or people_roots %}
+      <input type="search"
+             id="loc-tree-search"
+             class="loc-tree-search"
+             placeholder="Search locations or people…"
+             aria-label="Search locations or people"
+             autocomplete="off" />
+      <p class="muted small loc-tree-empty" hidden>No matches.</p>
+
+      {% if location_roots %}
+        <h3 class="loc-tree-section-title">Locations</h3>
+        {% include 'main_app/_location_tree.html' with nodes=location_roots %}
+      {% endif %}
+
+      {% if people_roots %}
+        <h3 class="loc-tree-section-title">People</h3>
+        {% include 'main_app/_location_tree.html' with nodes=people_roots %}
+      {% endif %}
+    {% else %}
+      <p class="muted">No locations yet. Add one to get started.</p>
+    {% endif %}
+  </aside>
+  <section class="loc-map-panel" id="location-panel" aria-live="polite">
+    <p class="muted">Pick a location on the left to see its sub-locations and items.</p>
+  </section>
+</div>
+
+<script>
+(function () {
+  const input = document.getElementById('loc-tree-search');
+  if (!input) return;
+  const tree = document.querySelector('.loc-map-tree');
+  const emptyMsg = tree.querySelector('.loc-tree-empty');
+
+  // Snapshot the initial open state of each <details> so we can restore on clear.
+  const initialOpen = new Map();
+  tree.querySelectorAll('details').forEach(d => initialOpen.set(d, d.open));
+
+  function nodeName(li) {
+    const btn = li.querySelector(':scope > .tree-drop-zone > .loc-tree-link, :scope > details > summary .tree-drop-zone > .loc-tree-link');
+    return btn ? btn.textContent.trim().toLowerCase() : '';
+  }
+
+  function childLis(li) {
+    const subUl = li.querySelector(':scope > details > ul.loc-tree');
+    return subUl ? Array.from(subUl.querySelectorAll(':scope > li.loc-tree-node')) : [];
+  }
+
+  function filterLi(li, q) {
+    const selfMatch = q === '' || nodeName(li).indexOf(q) !== -1;
+    let descendantMatch = false;
+    for (const child of childLis(li)) {
+      if (filterLi(child, q)) descendantMatch = true;
+    }
+    const visible = selfMatch || descendantMatch;
+    li.hidden = !visible;
+    const details = li.querySelector(':scope > details');
+    if (details) {
+      if (q === '') {
+        details.open = initialOpen.get(details) || false;
+      } else if (descendantMatch) {
+        details.open = true;
+      }
+    }
+    return visible;
+  }
+
+  function run() {
+    const q = input.value.trim().toLowerCase();
+    // Walk every top-level <ul.loc-tree> child (we now have one per section).
+    const sectionUls = Array.from(tree.querySelectorAll(':scope > ul.loc-tree'));
+    let anyMatch = false;
+    for (const ul of sectionUls) {
+      const rootLis = Array.from(ul.querySelectorAll(':scope > li.loc-tree-node'));
+      let sectionMatch = false;
+      for (const li of rootLis) {
+        if (filterLi(li, q)) { sectionMatch = true; anyMatch = true; }
+      }
+      // Hide the section header that immediately precedes this <ul> if nothing matches.
+      const prev = ul.previousElementSibling;
+      if (prev && prev.classList && prev.classList.contains('loc-tree-section-title')) {
+        prev.hidden = !sectionMatch && q !== '';
+      }
+    }
+    if (emptyMsg) emptyMsg.hidden = !(q && !anyMatch);
+  }
+
+  input.addEventListener('input', run);
+  input.addEventListener('search', run);  // Safari clear-button event
+})();
+</script>
+{% endblock %}

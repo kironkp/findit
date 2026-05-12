@@ -1,0 +1,15 @@
+{% load icon_tags %}
+<li class="loc-sub">
+  <a href="{% url 'location-detail' node.id %}" class="loc-sub-card">
+    <span class="loc-name">{% location_icon node.icon %}<span class="loc-sub-name">{{ node.name }}</span></span>
+    {% if node.is_person %}<span class="badge soft">person</span>{% endif %}
+    <span class="muted small">{{ node.items.count }} item{{ node.items.count|pluralize }}</span>
+  </a>
+  {% if node.children_list %}
+    <ul class="loc-sub-list">
+      {% for child in node.children_list %}
+        {% include 'main_app/_location_subcard.html' with node=child %}
+      {% endfor %}
+    </ul>
+  {% endif %}
+</li>

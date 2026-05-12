@@ -1,0 +1,184 @@
+{% extends 'base.html' %}
+{% load static icon_tags %}
+{% block title %}{% if object %}Edit {{ object.name }}{% else %}Add location{% endif %} · FindIt{% endblock %}
+
+{% block content %}
+<section class="page-header">
+  <div>
+    <h1>{% if object %}Edit {{ object.name }}{% else %}Add a location{% endif %}</h1>
+    <p class="muted">A location is a room, shelf, drawer, box — or a person you've lent something to.</p>
+  </div>
+</section>
+
+<form method="post" class="big-form" autocomplete="off" id="location-form">
+  {% csrf_token %}
+  {% for field in form %}
+    {% if field.name != 'icon' %}
+      <div class="field {% if field.errors %}has-error{% endif %}">
+        <label for="{{ field.id_for_label }}">{{ field.label }}{% if field.field.required %} <span aria-hidden="true">*</span>{% endif %}</label>
+        {{ field }}
+        {% if field.help_text %}<p class="help">{{ field.help_text }}</p>{% endif %}
+        {% if field.errors %}<p class="error">{{ field.errors|join:", " }}</p>{% endif %}
+      </div>
+    {% endif %}
+  {% endfor %}
+
+  <div class="field icon-picker-field">
+    <label>Icon</label>
+    {{ form.icon }}
+    <div class="icon-picker"
+         data-name-input="id_name"
+         data-hidden-input="id_icon">
+      <div class="icon-current">
+        <span class="loc-icon icon-preview no-icon" aria-hidden="true"></span>
+        <span class="icon-current-label muted">Pick an icon</span>
+        <button type="button" class="btn ghost small icon-clear" hidden>Clear</button>
+      </div>
+      <input type="search" class="icon-search" placeholder="Search icons…" aria-label="Search icons" />
+      <div class="icon-grid" role="listbox" aria-label="Icons">
+        {% for slug, label in icon_catalog %}
+          <button type="button"
+                  class="icon-option"
+                  role="option"
+                  data-slug="{{ slug }}"
+                  data-label="{{ label }}"
+                  aria-label="{{ label }}"
+                  title="{{ label }}">
+            <span class="loc-icon">{% location_icon_svg slug %}</span>
+          </button>
+        {% endfor %}
+      </div>
+      <p class="help">Suggestions show up as you type the name — click any icon to override.</p>
+    </div>
+  </div>
+
+  <div class="form-actions">
+    <a href="{% url 'location-index' %}" class="btn ghost">Cancel</a>
+    <button type="submit" class="btn primary">{% if object %}Save changes{% else %}Add location{% endif %}</button>
+  </div>
+</form>
+
+<script>
+(function () {
+  const picker = document.querySelector('.icon-picker');
+  if (!picker) return;
+  const nameInput = document.getElementById(picker.dataset.nameInput);
+  const hidden = document.getElementById(picker.dataset.hiddenInput);
+  const preview = picker.querySelector('.icon-preview');
+  const currentLabel = picker.querySelector('.icon-current-label');
+  const clearBtn = picker.querySelector('.icon-clear');
+  const search = picker.querySelector('.icon-search');
+  const options = Array.from(picker.querySelectorAll('.icon-option'));
+
+  // user-touched: once true, name-based auto-suggest stops overwriting
+  let userPicked = !!hidden.value;
+
+  const slugLabels = {};
+  const slugSvgs = {};
+  options.forEach(opt => {
+    slugLabels[opt.dataset.slug] = opt.dataset.label;
+    const svgEl = opt.querySelector('svg');
+    if (svgEl) slugSvgs[opt.dataset.slug] = svgEl.outerHTML;
+  });
+
+  // Keyword map mirrored from icons.py (kept short — order matters: specific first)
+  const KEYWORDS = [
+    ['bedroom', 'bed'], ['kitchen', 'utensils'], ['pantry', 'utensils'],
+    ['fridge', 'refrigerator'], ['living', 'sofa'], ['lounge', 'sofa'],
+    ['family room', 'sofa'], ['office', 'briefcase'], ['study', 'book'],
+    ['library', 'library'], ['bathroom', 'shower-head'], ['bath', 'shower-head'],
+    ['laundry', 'washing-machine'], ['garage', 'car'], ['attic', 'warehouse'],
+    ['basement', 'warehouse'], ['storage', 'warehouse'], ['garden', 'flower'],
+    ['yard', 'tree-pine'], ['patio', 'tree-pine'], ['house', 'home'],
+    ['apartment', 'building'], ['studio', 'mic'],
+    ['couch', 'sofa'], ['sofa', 'sofa'], ['chair', 'armchair'], ['lamp', 'lamp'],
+    ['desk', 'briefcase'], ['bookshelf', 'library'], ['shelf', 'library'],
+    ['closet', 'shirt'], ['wardrobe', 'shirt'], ['dresser', 'shirt'],
+    ['cabinet', 'archive'], ['drawer', 'archive'],
+    ['box', 'box'], ['crate', 'box'], ['bin', 'container'], ['container', 'container'],
+    ['bag', 'shopping-bag'], ['backpack', 'backpack'], ['briefcase', 'briefcase'],
+    ['folder', 'folder'], ['binder', 'folder'], ['file', 'file'],
+    ['clothes', 'shirt'], ['clothing', 'shirt'], ['shirt', 'shirt'], ['shoe', 'shirt'],
+    ['jewelry', 'gift'], ['glasses', 'glasses'], ['watch', 'watch'], ['key', 'key'],
+    ['gift', 'gift'], ['book', 'book'],
+    ['computer', 'laptop'], ['laptop', 'laptop'], ['monitor', 'monitor'],
+    ['screen', 'monitor'], ['camera', 'camera'], ['music', 'music'], ['guitar', 'guitar'],
+    ['speaker', 'speaker'], ['microphone', 'mic'], ['mic', 'mic'], ['audio', 'speaker'],
+    ['recording', 'mic'], ['gaming', 'gamepad-2'], ['game', 'gamepad-2'],
+    ['tool', 'wrench'], ['workshop', 'wrench'], ['paint', 'paintbrush'],
+    ['medicine', 'pill'], ['medical', 'pill'], ['pill', 'pill'],
+    ['baby', 'baby'], ['kids', 'baby'], ['child', 'baby'], ['nursery', 'baby'],
+    ['dog', 'dog'], ['cat', 'cat'], ['pet', 'dog'],
+    ['outdoor', 'tree-pine'], ['shed', 'warehouse'],
+    ['coffee', 'coffee'], ['wine', 'wine'], ['bar', 'wine'],
+    ['bed', 'bed'],
+  ];
+
+  function suggest(name) {
+    const n = (name || '').toLowerCase().trim();
+    if (!n) return null;
+    for (const [kw, slug] of KEYWORDS) {
+      if (n.indexOf(kw) !== -1) return slug;
+    }
+    return null;
+  }
+
+  function setIcon(slug, { fromUser } = {}) {
+    hidden.value = slug || '';
+    if (slug && slugSvgs[slug]) {
+      preview.innerHTML = slugSvgs[slug];
+      preview.classList.remove('no-icon');
+      currentLabel.textContent = slugLabels[slug] || slug;
+      currentLabel.classList.remove('muted');
+      clearBtn.hidden = false;
+    } else {
+      preview.innerHTML = '';
+      preview.classList.add('no-icon');
+      currentLabel.textContent = 'Pick an icon';
+      currentLabel.classList.add('muted');
+      clearBtn.hidden = true;
+    }
+    options.forEach(opt => {
+      opt.classList.toggle('selected', opt.dataset.slug === slug);
+    });
+    if (fromUser) userPicked = true;
+  }
+
+  // Initialize from current value
+  setIcon(hidden.value || null);
+
+  options.forEach(opt => {
+    opt.addEventListener('click', () => setIcon(opt.dataset.slug, { fromUser: true }));
+  });
+
+  clearBtn.addEventListener('click', () => {
+    setIcon(null);
+    userPicked = false;
+    // immediately re-suggest from the current name
+    const s = suggest(nameInput && nameInput.value);
+    if (s) setIcon(s);
+  });
+
+  search.addEventListener('input', () => {
+    const q = search.value.toLowerCase().trim();
+    options.forEach(opt => {
+      const hay = (opt.dataset.slug + ' ' + opt.dataset.label).toLowerCase();
+      opt.style.display = (!q || hay.indexOf(q) !== -1) ? '' : 'none';
+    });
+  });
+
+  if (nameInput) {
+    nameInput.addEventListener('input', () => {
+      if (userPicked) return;
+      const s = suggest(nameInput.value);
+      if (s) setIcon(s);
+    });
+    // First-load suggestion for create form (when no icon yet)
+    if (!hidden.value) {
+      const s = suggest(nameInput.value);
+      if (s) setIcon(s);
+    }
+  }
+})();
+</script>
+{% endblock %}

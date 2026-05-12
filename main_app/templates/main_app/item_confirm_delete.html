@@ -1,0 +1,16 @@
+{% extends 'base.html' %}
+{% load static %}
+{% block title %}Delete {{ object.name }}?{% endblock %}
+
+{% block content %}
+<section class="confirm-card">
+  <img src="{% static 'images/empty-state.svg' %}" alt="" aria-hidden="true" />
+  <h1>Delete {{ object.name }}?</h1>
+  <p class="muted">This permanently removes it and its move history. If you just don't have it anymore, archive it instead from the detail page.</p>
+  <form method="post" class="confirm-actions">
+    {% csrf_token %}
+    <a href="{% url 'item-detail' object.id %}" class="btn secondary">Cancel</a>
+    <button type="submit" class="btn danger">Yes, delete</button>
+  </form>
+</section>
+{% endblock %}

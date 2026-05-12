@@ -1,0 +1,44 @@
+{% extends 'base.html' %}
+{% load static %}
+{% block title %}{{ tag.name }} · FindIt{% endblock %}
+
+{% block content %}
+<section class="page-header">
+  <div>
+    <h1 style="display:flex; align-items:center; gap:12px;">
+      <span class="tag-swatch" style="background:{{ tag.color }}; width:22px; height:22px; border-radius:50%; display:inline-block;" aria-hidden="true"></span>
+      {{ tag.name }}
+    </h1>
+    <p class="muted">A shared tag — {{ items.count }} of your item{{ items.count|pluralize }} use{{ items.count|pluralize:"s," }} it.</p>
+  </div>
+  <div class="detail-actions">
+    <a href="{% url 'tag-update' tag.id %}" class="btn secondary">Edit</a>
+    <a href="{% url 'tag-delete' tag.id %}" class="btn danger">Delete</a>
+  </div>
+</section>
+
+<section class="card-grid">
+  {% for item in items %}
+    <a href="{% url 'item-detail' item.id %}" class="item-card">
+      <div class="item-card-photo">
+        {% if item.photo %}
+          <img src="{{ item.photo.url }}" alt="Photo of {{ item.name }}" />
+        {% else %}
+          <img src="{% static 'images/item-placeholder.svg' %}" alt="" aria-hidden="true" class="placeholder"/>
+        {% endif %}
+      </div>
+      <div class="item-card-body">
+        <h3>{{ item.name }}</h3>
+        <p class="muted">{% if item.location %}in {{ item.location.name }}{% else %}No location set{% endif %}</p>
+      </div>
+    </a>
+  {% empty %}
+    <div class="empty-state">
+      <img src="{% static 'images/empty-state.svg' %}" alt="" aria-hidden="true" />
+      <h2>None of your items use this tag yet</h2>
+      <p>Open any item's detail page to attach this tag.</p>
+      <a href="{% url 'item-index' %}" class="btn primary">Browse my things</a>
+    </div>
+  {% endfor %}
+</section>
+{% endblock %}

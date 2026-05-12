@@ -1,0 +1,16 @@
+{% extends 'base.html' %}
+{% load static %}
+{% block title %}Delete {{ object.name }}?{% endblock %}
+
+{% block content %}
+<section class="confirm-card">
+  <img src="{% static 'images/empty-state.svg' %}" alt="" aria-hidden="true" />
+  <h1>Delete {{ object.name }}?</h1>
+  <p class="muted">Items currently in this location will be left without a location, but won't be deleted.</p>
+  <form method="post" class="confirm-actions">
+    {% csrf_token %}
+    <a href="{% url 'location-detail' object.id %}" class="btn secondary">Cancel</a>
+    <button type="submit" class="btn danger">Yes, delete</button>
+  </form>
+</section>
+{% endblock %}

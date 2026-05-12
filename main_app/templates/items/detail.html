@@ -1,0 +1,219 @@
+{% extends 'base.html' %}
+{% load static %}
+{% block title %}{{ item.name }} · FindIt{% endblock %}
+
+{% block content %}
+<section class="detail-shell">
+
+  <div class="detail-photo">
+    {% if item.photo %}
+      <img src="{{ item.photo.url }}" alt="Photo of {{ item.name }}" />
+    {% else %}
+      <img src="{% static 'images/item-placeholder.svg' %}" alt="" aria-hidden="true" class="placeholder"/>
+    {% endif %}
+  </div>
+
+  <div class="detail-main">
+    <header class="detail-header">
+      <div>
+        <h1>{{ item.name }}</h1>
+        {% if item.distinguishing_detail %}
+          <p class="muted">{{ item.distinguishing_detail }}</p>
+        {% endif %}
+        {% if item.archived %}
+          <span class="badge archived">Archived</span>
+        {% endif %}
+      </div>
+      <div class="detail-actions">
+        {% if not is_lent and not item.archived %}
+          <a href="#lend-out" class="btn secondary">🤝 Lend out</a>
+        {% endif %}
+        <a href="{% url 'item-update' item.id %}" class="btn secondary">Edit</a>
+        <a href="{% url 'item-delete' item.id %}" class="btn danger">Delete</a>
+      </div>
+    </header>
+
+    {% if is_lent %}
+      <section class="lent-banner" role="status">
+        <div class="lent-banner-body">
+          <h2>Lent to {{ item.location.name }}</h2>
+          {% if current_lend.return_by %}
+            <p class="muted">Due back {{ current_lend.return_by|date:"M j, Y" }}{% if current_lend.note %} · <em>{{ current_lend.note }}</em>{% endif %}</p>
+          {% else %}
+            <p class="muted">No return date set.{% if current_lend.note %} <em>{{ current_lend.note }}</em>{% endif %}</p>
+          {% endif %}
+        </div>
+        <form method="post" action="{% url 'item-return' item.id %}" class="inline-form">
+          {% csrf_token %}
+          <button type="submit" class="btn primary">Mark returned</button>
+        </form>
+      </section>
+    {% else %}
+      <details class="lend-disclosure" id="lend-out">
+        <summary>🤝 Lend out</summary>
+        <form method="post" action="{% url 'item-lend' item.id %}" class="lend-form">
+          {% csrf_token %}
+          <div class="field">
+            <label for="lend-person">Who's borrowing it?</label>
+            <input id="lend-person"
+                   type="text"
+                   name="person_name"
+                   list="known-people"
+                   placeholder="e.g. Alex, Mom, Brother"
+                   maxlength="100"
+                   required />
+            <datalist id="known-people">
+              {% for p in known_people %}
+                <option value="{{ p.name }}"></option>
+              {% endfor %}
+            </datalist>
+            <p class="help">New name → we'll create them as a person automatically.</p>
+          </div>
+          <div class="field">
+            <label for="lend-return">Return by (optional)</label>
+            <input id="lend-return" type="date" name="return_by" />
+          </div>
+          <button type="submit" class="btn primary">Lend it</button>
+        </form>
+      </details>
+    {% endif %}
+
+    <dl class="kv-list">
+      <div>
+        <dt>Currently in</dt>
+        <dd>
+          {% if item.location %}
+            <a href="{% url 'location-detail' item.location.id %}">{{ item.location.breadcrumb }}</a>
+            {% if item.location.is_person %}<span class="badge soft">lent</span>{% endif %}
+          {% else %}
+            <span class="muted">— no location set —</span>
+          {% endif %}
+        </dd>
+      </div>
+      <div>
+        <dt>Last confirmed</dt>
+        <dd>{{ item.last_confirmed|date:"M j, Y" }} <span class="muted">({{ item.last_confirmed|timesince }} ago)</span></dd>
+      </div>
+      <div>
+        <dt>Quantity</dt>
+        <dd>{{ item.quantity }}</dd>
+      </div>
+      {% if item.description %}
+      <div>
+        <dt>Description</dt>
+        <dd>{{ item.description }}</dd>
+      </div>
+      {% endif %}
+    </dl>
+
+    {% if item.location %}
+      <section class="confirm-strip" aria-label="Confirm location">
+        <p><strong>Found it here?</strong></p>
+        <form action="{% url 'item-confirm' item.id %}" method="post" class="inline-form">
+          {% csrf_token %}
+          <button type="submit" class="btn primary small">Yes — still here</button>
+        </form>
+        <span class="muted">No? Use <em>Move it</em> below.</span>
+      </section>
+    {% endif %}
+
+    <section class="panel">
+      <h2>Move it</h2>
+      <form action="{% url 'item-move' item.id %}" method="post" class="stacked-form">
+        {% csrf_token %}
+        {% if move_form.non_field_errors %}
+          <p class="error">{{ move_form.non_field_errors|join:", " }}</p>
+        {% endif %}
+        <div class="field">
+          <label for="id_location">New item location</label>
+          {{ move_form.location }}
+        </div>
+        <div class="field">
+          <label for="{{ move_form.new_location.id_for_label }}">Or create a new location</label>
+          {{ move_form.new_location }}
+          <p class="help">{{ move_form.new_location.help_text }}</p>
+        </div>
+        <div class="field">
+          <label for="id_note">Note</label>
+          {{ move_form.note }}
+        </div>
+        <div class="field">
+          <label for="id_return_by">Return by (optional)</label>
+          {{ move_form.return_by }}
+        </div>
+        <button type="submit" class="btn primary">Log the move</button>
+      </form>
+    </section>
+
+    <section class="panel">
+      <h2>Tags</h2>
+      <div class="tag-block">
+        {% if item.tags.all %}
+          <ul class="tag-row">
+            {% for tag in item.tags.all %}
+              <li class="tag-chip removable" style="background-color: {{ tag.color }}">
+                {{ tag.name }}
+                <form action="{% url 'item-remove-tag' item.id tag.id %}" method="post">
+                  {% csrf_token %}
+                  <button type="submit" aria-label="Remove tag {{ tag.name }}">×</button>
+                </form>
+              </li>
+            {% endfor %}
+          </ul>
+        {% else %}
+          <p class="muted">No tags yet.</p>
+        {% endif %}
+      </div>
+
+      {% if available_tags %}
+        <h3>Add a tag</h3>
+        <ul class="tag-row">
+          {% for tag in available_tags %}
+            <li>
+              <form action="{% url 'item-add-tag' item.id tag.id %}" method="post" class="inline-form">
+                {% csrf_token %}
+                <button type="submit" class="tag-chip add" style="background-color: {{ tag.color }}">+ {{ tag.name }}</button>
+              </form>
+            </li>
+          {% endfor %}
+        </ul>
+      {% else %}
+        <p class="muted"><a href="{% url 'tag-create' %}">Create more tags →</a></p>
+      {% endif %}
+    </section>
+
+    <section class="panel">
+      <h2>Move history</h2>
+      {% if history %}
+        <ol class="history-list">
+          {% for log in history %}
+            <li>
+              <time>{{ log.moved_at|date:"M j, Y" }}</time>
+              <span class="history-body">
+                → {% if log.location %}{{ log.location.name }}{% else %}<span class="muted">(location removed)</span>{% endif %}
+                {% if log.note %} <em>— {{ log.note }}</em>{% endif %}
+                {% if log.return_by %} <span class="badge soft">due back {{ log.return_by|date:"M j" }}</span>{% endif %}
+              </span>
+              <span class="history-actions">
+                <a href="{% url 'move-update' log.id %}" class="btn ghost small">Edit</a>
+                <a href="{% url 'move-delete' log.id %}" class="btn ghost small danger">Delete</a>
+              </span>
+            </li>
+          {% endfor %}
+        </ol>
+      {% else %}
+        <p class="muted">No moves logged yet.</p>
+      {% endif %}
+    </section>
+
+    <section class="panel quiet">
+      <form action="{% url 'item-archive' item.id %}" method="post" class="inline-form">
+        {% csrf_token %}
+        <button type="submit" class="btn ghost small">
+          {% if item.archived %}Restore from archive{% else %}I don't have this anymore{% endif %}
+        </button>
+      </form>
+    </section>
+  </div>
+</section>
+{% endblock %}

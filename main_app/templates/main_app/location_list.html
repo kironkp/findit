@@ -1,0 +1,45 @@
+{% extends 'base.html' %}
+{% load static icon_tags %}
+{% block title %}Locations · FindIt{% endblock %}
+
+{% block content %}
+<section class="page-header">
+  <div>
+    <h1>Locations</h1>
+    <p class="muted">The places your stuff lives.</p>
+  </div>
+  <a href="{% url 'location-create' %}" class="btn primary">+ Add location</a>
+</section>
+
+{% if root_groups %}
+  <section class="loc-group-grid">
+    {% for root in root_groups %}
+      <article class="loc-group">
+        <a href="{% url 'location-detail' root.id %}" class="loc-card root">
+          <div class="loc-card-body">
+            <h3 class="loc-name">{% location_icon root.icon %}{{ root.name }}</h3>
+            {% if root.is_person %}<span class="badge soft">person</span>{% endif %}
+            <p class="muted">{{ root.items.count }} item{{ root.items.count|pluralize }}</p>
+          </div>
+        </a>
+        {% if root.children_list %}
+          <ul class="loc-sub-list">
+            {% for child in root.children_list %}
+              {% include 'main_app/_location_subcard.html' with node=child %}
+            {% endfor %}
+          </ul>
+        {% endif %}
+      </article>
+    {% endfor %}
+  </section>
+{% else %}
+  <section class="card-grid">
+    <div class="empty-state">
+      <img src="{% static 'images/empty-state.svg' %}" alt="" aria-hidden="true" />
+      <h2>No locations yet</h2>
+      <p>Locations are the places your things live — rooms, shelves, drawers, boxes, even people you've lent things to.</p>
+      <a href="{% url 'location-create' %}" class="btn primary">Add your first location</a>
+    </div>
+  </section>
+{% endif %}
+{% endblock %}

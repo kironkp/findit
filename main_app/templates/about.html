@@ -1,0 +1,59 @@
+{% extends 'base.html' %}
+{% load static %}
+{% block title %}About · FindIt{% endblock %}
+
+{% block content %}
+<section class="about-hero">
+  <div class="about-text">
+    <h1>About FindIt</h1>
+    <p class="lead">A small, opinionated organizer for people who keep losing things in their own home.</p>
+  </div>
+  <div class="about-art" aria-hidden="true">
+    <img src="{% static 'images/about-illustration.svg' %}" alt="" />
+  </div>
+</section>
+
+<section class="about-body">
+  <article class="prose">
+    <h2>Why I built this</h2>
+    <p>
+      I forget where I put things constantly — passport, drill bits, the good scissors, that one charger.
+      I tried spreadsheets, sticky notes, photos in a folder. Nothing stuck because the act of logging was always more work than just buying another pair of scissors.
+    </p>
+    <p>
+      FindIt is built around the moment you actually need it: <em>standing in a closet, holding something, with one hand free</em>.
+      Add an item in three fields. Move it with one tap. After a lookup, the app asks "Found it here?" — and silently fixes itself when the answer is no.
+    </p>
+
+    <h2>How it works</h2>
+    <ul>
+      <li><strong>Things</strong> are the items you own. Each one belongs to a location.</li>
+      <li><strong>Locations</strong> nest. A safe lives inside a closet inside a bedroom. The app shows the breadcrumb so you know exactly where to look.</li>
+      <li><strong>Tags</strong> are a shared catalog — fragile, electronics, seasonal, valuable. Use them across all your stuff.</li>
+      <li><strong>Move history</strong> is automatic. Every move logs a timestamp so you can look at the trail when something's wandered off.</li>
+    </ul>
+
+    <h2>About the builder</h2>
+    <div class="bio-row">
+      <img src="{% static 'images/about-avatar.svg' %}" alt="A friendly avatar of the project author" class="avatar"/>
+      <div>
+        <p>
+          Hi — I built FindIt because I wanted a project I'd actually keep using after the demo. So I picked the boring problem I have most often: <em>where did I put the thing</em>.
+        </p>
+        <p>
+          The whole app is intentionally small. No notifications, no native app, no AI. Just the cleanest possible loop between "put something away" and "find it again later."
+        </p>
+      </div>
+    </div>
+
+    <h2>Tech &amp; credits</h2>
+    <ul class="credits">
+      <li>Backend: <strong>Django</strong> + <strong>PostgreSQL</strong></li>
+      <li>Templates: Django templates + plain HTML/CSS</li>
+      <li>Layout: CSS Grid &amp; Flexbox</li>
+      <li>Images: hand-rolled SVG illustrations</li>
+      <li>Type: <a href="https://fonts.google.com/specimen/Inter">Inter</a> + <a href="https://fonts.google.com/specimen/Fraunces">Fraunces</a> via Google Fonts</li>
+    </ul>
+  </article>
+</section>
+{% endblock %}

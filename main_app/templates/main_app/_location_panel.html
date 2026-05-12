@@ -1,0 +1,51 @@
+{% load icon_tags %}
+<div class="loc-panel-header" data-location-id="{{ location.id }}">
+  <h2 class="loc-name">{% location_icon location.icon %}{{ location.name }}</h2>
+  <p class="muted">{{ location.breadcrumb }}</p>
+  <div class="detail-actions">
+    <a href="{% url 'location-detail' location.id %}" class="btn ghost">Open</a>
+    <a href="{% url 'location-update' location.id %}" class="btn secondary">Edit</a>
+  </div>
+</div>
+
+<section class="panel-section">
+  <h3>Sub-locations</h3>
+  {% if children %}
+    <div class="subloc-grid">
+      {% for child in children %}
+        <div class="subloc-card" data-location-id="{{ child.id }}">
+          <button type="button"
+                  class="subloc-card-title loc-name"
+                  hx-get="{% url 'location-panel' child.id %}"
+                  hx-target="#location-panel"
+                  hx-swap="innerHTML">
+            {% location_icon child.icon %}{{ child.name }}
+          </button>
+          <p class="muted small">{{ child.items.count }} item{{ child.items.count|pluralize }}</p>
+        </div>
+      {% endfor %}
+    </div>
+  {% else %}
+    <p class="muted">No sub-locations yet. Add one to nest things deeper.</p>
+  {% endif %}
+  <p class="panel-action"><a href="{% url 'location-create' %}?parent={{ location.id }}" class="btn primary">+ Sub-location</a></p>
+</section>
+
+<section class="panel-section">
+  <h3>Things here <span class="muted small">— drag onto a sub-location to move</span></h3>
+  {% if items %}
+    <div class="item-chip-list" data-location-id="{{ location.id }}">
+      {% for item in items %}
+        <div class="item-chip" data-item-id="{{ item.id }}">
+          <span class="drag-handle" aria-label="Drag to move" title="Drag to a sub-location">⋮⋮</span>
+          <a href="{% url 'item-detail' item.id %}" draggable="false">{{ item.name }}</a>
+          {% if item.distinguishing_detail %}<span class="muted small">{{ item.distinguishing_detail }}</span>{% endif %}
+          {% if item.quantity > 1 %}<span class="muted small">×{{ item.quantity }}</span>{% endif %}
+        </div>
+      {% endfor %}
+    </div>
+  {% else %}
+    <p class="muted">Nothing here yet.</p>
+  {% endif %}
+  <p class="panel-action"><a href="{% url 'item-create' %}?location={{ location.id }}" class="btn primary">+ Add item</a></p>
+</section>
