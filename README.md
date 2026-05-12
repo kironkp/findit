@@ -18,13 +18,29 @@ FindIt is a personal organizer for physical things. You log an item, put it some
 - **Lend without losing** — mark a person as a location, set a return date, see what's overdue
 - **Soft archive** — "I don't have this anymore" instead of permanent delete
 
+## What's notable
+
+- **Hierarchical locations** — a closet inside a bedroom inside a house; reparent by drag-and-drop on the home page.
+- **AI bulk add** — dictate or paste a freeform description ("I have fishing gear and a propane tank on my boat Indigo in the Starboard Cockpit Locker") and the app extracts each item, picks the right location path, and even suggests location icons.
+- **Auto-fetched product photos** — when you add an item without uploading a photo, FindIt fetches a representative image from Google Images via Serper.dev.
+- **Lend tracking with overdue detection** — mark a person as a location, set a return date, see overdue items in red on the home page.
+- **Move history per item** — every move is logged with an optional note and return date.
+- **Org-chart visualization** — your collection rendered as a flowchart on the home page, with drag-and-drop to reparent locations and move items between them.
+
 ## Built with
 
 - **Python 3.12** + **Django 6.0**
 - **PostgreSQL** (with SQLite fallback for first-run dev)
-- **django-environ** for env var management
+- **django-environ** + **python-dotenv** for env var management
 - **Pillow** for image upload + resizing
-- **WhiteNoise** for static files in production
+- **WhiteNoise** for static file serving in production
+- **gunicorn** as the production WSGI server
+- **dj-database-url** for Heroku Postgres connection parsing
+- **OpenAI Whisper + GPT-4o-mini** for voice/text bulk item intake
+- **Serper.dev** for Google Images product photo fallback
+- **Lucide** for line-icon SVGs on locations
+- **HTMX** for the live map panel
+- **SortableJS** for drag-and-drop move operations on the map
 - Plain Django templates, vanilla CSS (Grid + Flexbox), Inter + Fraunces from Google Fonts
 - Hand-rolled SVG illustrations
 
@@ -72,7 +88,7 @@ Visit [http://localhost:8000](http://localhost:8000), sign up, and start putting
 
 ## Live demo
 
-🔗 **Deployed app:** _Add link here once deployed (e.g. Render, Railway, Fly.io)_
+🔗 **Deployed app:** [find-it-app on Heroku](https://find-it-app-889e9b2290ea.herokuapp.com/)
 
 🔗 **Planning materials:** _Add link to your wireframes / ERD / Trello board_
 
@@ -127,6 +143,10 @@ User ─┬── Item ─┬── LocationLog
 
 - **Inter** typeface by Rasmus Andersson — [Google Fonts](https://fonts.google.com/specimen/Inter)
 - **Fraunces** typeface by Phaedra Charles, Lasse Fister & Travis Kochel — [Google Fonts](https://fonts.google.com/specimen/Fraunces)
+- **Lucide** icon set by the Lucide contributors — [lucide.dev](https://lucide.dev) (ISC license; SVGs vendored under `main_app/static/icons/`)
+- **OpenAI** Whisper + GPT-4o-mini APIs — used for voice transcription and natural-language item extraction in the bulk-add flow
+- **Serper.dev** — Google Images search API used for the product-photo fallback when no photo is uploaded
+- **HTMX** ([htmx.org](https://htmx.org)) and **SortableJS** ([sortablejs.github.io](https://sortablejs.github.io/Sortable/)) — used for live interactions on the map page
 - All illustrations are hand-authored SVG (no third-party clip art).
 
 ## Next steps (stretch goals)
