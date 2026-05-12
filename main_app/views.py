@@ -160,13 +160,17 @@ def item_index(request):
     by_id = {loc.id: loc for loc in user_locations}
     for loc in user_locations:
         loc.children_list = []
-    root_groups = []
+    location_roots = []
+    people_roots = []
     for loc in user_locations:
         if loc.parent_id and loc.parent_id in by_id:
             by_id[loc.parent_id].children_list.append(loc)
+        elif loc.is_person:
+            people_roots.append(loc)
         else:
-            root_groups.append(loc)
-    root_groups.sort(key=lambda l: l.name.lower())
+            location_roots.append(loc)
+    location_roots.sort(key=lambda l: l.name.lower())
+    people_roots.sort(key=lambda l: l.name.lower())
     for loc in user_locations:
         loc.children_list.sort(key=lambda l: l.name.lower())
 
@@ -178,7 +182,9 @@ def item_index(request):
         'selected_location': int(location_id) if location_id else None,
         'tags': Tag.objects.all(),
         'locations': user_locations,
-        'root_groups': root_groups,
+        'root_groups': location_roots,   # backward-compat for any other template using this
+        'location_roots': location_roots,
+        'people_roots': people_roots,
         'no_match_query': query if query and not items.exists() else '',
         'view_mode': view_mode,
         'qs_cards': qs_with('cards'),

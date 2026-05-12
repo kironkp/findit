@@ -37,14 +37,13 @@
     <a href="{% url 'location-create' %}" class="btn secondary small">+ Add location</a>
   </header>
 
-  {% if root_groups %}
+  {% if location_roots %}
     <section class="loc-group-grid">
-      {% for root in root_groups %}
+      {% for root in location_roots %}
         <article class="loc-group">
           <a href="{% url 'location-detail' root.id %}" class="loc-card root">
             <div class="loc-card-body">
               <h3 class="loc-name">{% location_icon root.icon %}{{ root.name }}</h3>
-              {% if root.is_person %}<span class="badge soft">person</span>{% endif %}
               <p class="muted">{{ root.items.count }} item{{ root.items.count|pluralize }}</p>
             </div>
           </a>
@@ -62,6 +61,28 @@
     <p class="muted">No locations yet. <a href="{% url 'location-create' %}">Add your first one →</a></p>
   {% endif %}
 </section>
+
+{# ---------- People (lent-to) ---------- #}
+{% if people_roots %}
+  <section class="combined-section">
+    <header class="combined-section-header">
+      <h2>People</h2>
+      <p class="muted small">Folks you've lent things to</p>
+    </header>
+    <section class="loc-group-grid">
+      {% for person in people_roots %}
+        <article class="loc-group">
+          <a href="{% url 'location-detail' person.id %}" class="loc-card root">
+            <div class="loc-card-body">
+              <h3 class="loc-name">{% location_icon person.icon %}{{ person.name }}</h3>
+              <p class="muted">{{ person.items.count }} item{{ person.items.count|pluralize }} lent</p>
+            </div>
+          </a>
+        </article>
+      {% endfor %}
+    </section>
+  </section>
+{% endif %}
 
 {# ---------- Things Inventory ---------- #}
 <section class="combined-section">
