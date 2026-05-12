@@ -305,6 +305,13 @@ img { max-width: 100%; height: auto; display: block; }
 .loc-card-icon img { width: 28px; height: 28px; }
 .loc-card-body h3 { margin: 0 0 var(--s-1); }
 
+.lent-person-name {
+  flex-shrink: 0;
+  margin-left: auto;
+  padding-left: var(--s-3);
+  font-size: 0.9em;
+}
+
 /* Tag cards */
 .tag-grid { grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); }
 .tag-card {

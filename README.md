@@ -44,53 +44,11 @@ FindIt is a personal organizer for physical things. You log an item, put it some
 - Plain Django templates, vanilla CSS (Grid + Flexbox), Inter + Fraunces from Google Fonts
 - Hand-rolled SVG illustrations
 
-## Getting started
-
-### 1. Clone & install
-
-```bash
-git clone <your-repo-url>
-cd findit
-pipenv install        # or: python -m venv .venv && source .venv/bin/activate && pip install -r requirements.txt
-```
-
-### 2. Configure environment
-
-```bash
-cp .env.example .env
-# edit .env and set SECRET_KEY, DB_USER, DB_PASSWORD, DB_NAME
-```
-
-If you leave `DB_USER` blank, FindIt will fall back to a local SQLite file so you can poke around immediately. **For grading and deployment, use PostgreSQL** (the rubric requires it).
-
-### 3. Set up the database
-
-Create the database (PostgreSQL):
-
-```bash
-createdb findit
-```
-
-Then migrate:
-
-```bash
-pipenv run python manage.py migrate
-pipenv run python manage.py createsuperuser    # optional, for /admin
-```
-
-### 4. Run
-
-```bash
-pipenv run python manage.py runserver
-```
-
-Visit [http://localhost:8000](http://localhost:8000), sign up, and start putting things away.
 
 ## Live demo
 
 🔗 **Deployed app:** [find-it-app on Heroku](https://find-it-app-889e9b2290ea.herokuapp.com/)
 
-🔗 **Planning materials:** _Add link to your wireframes / ERD / Trello board_
 
 ## Project layout
 
@@ -156,8 +114,6 @@ User ─┬── Item ─┬── LocationLog
 - 👥 **Household sharing** — opt-in shared view so a partner can find the holiday decorations too.
 - 🔔 **Lent-out reminders** — passive email digest for items past their return date.
 - 📦 **Quantity per location** — split a single item across multiple locations ("4 in garage, 2 in attic").
-- 🎨 **Color/shape descriptor tags** — separate from category tags, for "the small blue one with a cracked corner."
+- 🎨 **Color/shape descriptor tags** — separate from category tags, for "the small blue one with a cracked 
+corner."
 
-## License
-
-Personal project for General Assembly Unit 4. Code may be reused freely.

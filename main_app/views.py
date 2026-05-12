@@ -174,6 +174,12 @@ def item_index(request):
     for loc in user_locations:
         loc.children_list.sort(key=lambda l: l.name.lower())
 
+    lent_items = (
+        Item.objects.filter(user=request.user, location__is_person=True, archived=False)
+        .select_related('location')
+        .order_by('location__name', 'name')
+    )
+
     context = {
         'items': items,
         'query': query,
@@ -185,6 +191,7 @@ def item_index(request):
         'root_groups': location_roots,   # backward-compat for any other template using this
         'location_roots': location_roots,
         'people_roots': people_roots,
+        'lent_items': lent_items,
         'no_match_query': query if query and not items.exists() else '',
         'view_mode': view_mode,
         'qs_cards': qs_with('cards'),

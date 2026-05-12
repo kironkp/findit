@@ -62,25 +62,32 @@
   {% endif %}
 </section>
 
-{# ---------- People (lent-to) ---------- #}
-{% if people_roots %}
+{# ---------- Lent Items ---------- #}
+{% if lent_items %}
   <section class="combined-section">
     <header class="combined-section-header">
-      <h2>People</h2>
-      <p class="muted small">Folks you've lent things to</p>
+      <h2>Lent Items</h2>
+      <p class="muted small">What you've lent and who has it</p>
     </header>
-    <section class="loc-group-grid">
-      {% for person in people_roots %}
-        <article class="loc-group">
-          <a href="{% url 'location-detail' person.id %}" class="loc-card root">
-            <div class="loc-card-body">
-              <h3 class="loc-name">{% location_icon person.icon %}{{ person.name }}</h3>
-              <p class="muted">{{ person.items.count }} item{{ person.items.count|pluralize }} lent</p>
-            </div>
+    <ul class="item-list">
+      {% for item in lent_items %}
+        <li>
+          <a href="{% url 'item-detail' item.id %}" class="item-row">
+            <span class="item-row-thumb">
+              {% if item.photo %}
+                <img src="{{ item.photo.url }}" alt="" />
+              {% else %}
+                <img src="{% static 'images/item-placeholder.svg' %}" alt="" aria-hidden="true" class="placeholder"/>
+              {% endif %}
+            </span>
+            <span class="item-row-body">
+              <span class="item-row-name">{{ item.name }}{% if item.distinguishing_detail %} <small>({{ item.distinguishing_detail }})</small>{% endif %}</span>
+            </span>
+            <span class="lent-person-name muted">{{ item.location.name }}</span>
           </a>
-        </article>
+        </li>
       {% endfor %}
-    </section>
+    </ul>
   </section>
 {% endif %}
 
