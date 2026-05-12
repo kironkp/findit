@@ -68,19 +68,29 @@
       </section>
 
       <section class="panel">
-        <h2>Lent out — due back</h2>
-        {% if due_back %}
+        <h2>Lent out</h2>
+        {% if lent_info %}
           <ul class="list-plain">
-            {% for log in due_back %}
-              <li class="move-line">
-                <a href="{% url 'item-detail' log.item.id %}">{{ log.item.name }}</a>
-                <span class="muted">with {{ log.location.name }}</span>
-                <time>by {{ log.return_by|date:"M j" }}</time>
+            {% for entry in lent_info %}
+              <li class="move-line{% if entry.overdue %} overdue{% endif %}">
+                <a href="{% url 'item-detail' entry.item.id %}">{{ entry.item.name }}</a>
+                <span class="muted">with {{ entry.location.name }}</span>
+                {% if entry.return_by %}
+                  <time>
+                    {% if entry.overdue %}
+                      overdue · was due {{ entry.return_by|date:"M j" }}
+                    {% else %}
+                      due {{ entry.return_by|date:"M j" }}
+                    {% endif %}
+                  </time>
+                {% else %}
+                  <span class="muted small">no return date</span>
+                {% endif %}
               </li>
             {% endfor %}
           </ul>
         {% else %}
-          <p class="muted">Nothing currently lent out with a return date.</p>
+          <p class="muted">Nothing currently lent out.</p>
         {% endif %}
       </section>
     </div>

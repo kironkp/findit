@@ -3,6 +3,10 @@ import os
 from pathlib import Path
 
 import environ
+import dj_database_url
+from dotenv import load_dotenv
+
+load_dotenv()
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -19,11 +23,13 @@ env = environ.Env(
 )
 environ.Env.read_env(os.path.join(BASE_DIR, '.env'))
 
-SECRET_KEY = env('SECRET_KEY')
-DEBUG = env('DEBUG')
+SECRET_KEY = os.getenv('SECRET_KEY')
+DEBUG = False
+if not 'ON_HEROKU' in os.environ:
+    DEBUG = True
 SERPER_API_KEY = env('SERPER_API_KEY')
 OPENAI_API_KEY = env('OPENAI_API_KEY')
-ALLOWED_HOSTS = ['*'] if DEBUG else env.list('ALLOWED_HOSTS', default=[])
+ALLOWED_HOSTS = ["*"] if DEBUG else env.list('ALLOWED_HOSTS', default=[])
 
 
 INSTALLED_APPS = [
@@ -67,8 +73,18 @@ TEMPLATES = [
 WSGI_APPLICATION = 'findit.wsgi.application'
 
 
-# PostgreSQL when DB_USER is set; SQLite fallback for first-run dev only.
-if env('DB_USER'):
+# Heroku uses DATABASE_URL (set automatically when Postgres add-on is attached).
+# Locally we keep the existing Postgres-when-DB_USER-set / SQLite fallback.
+if 'ON_HEROKU' in os.environ:
+    DATABASES = {
+        'default': dj_database_url.config(
+            env='DATABASE_URL',
+            conn_max_age=600,
+            conn_health_checks=True,
+            ssl_require=True,
+        ),
+    }
+elif env('DB_USER'):
     DATABASES = {
         'default': {
             'ENGINE': 'django.db.backends.postgresql',

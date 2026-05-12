@@ -60,20 +60,44 @@ def home(request):
             .filter(item__user=request.user)
             .select_related('item', 'location')[:5]
         )
-        due_back = (
-            LocationLog.objects
-            .filter(item__user=request.user, return_by__isnull=False)
-            .filter(item__location__is_person=True)
-            .select_related('item', 'location')
-            .order_by('return_by')[:5]
+
+        # All currently-lent items (regardless of return date), each tagged with
+        # the most recent lend log so we can show return_by + note + overdue flag.
+        from datetime import date as _date
+        today = timezone.now().date()
+        lent_items = list(
+            Item.objects
+            .filter(user=request.user, archived=False, location__is_person=True)
+            .select_related('location')
         )
+        lent_info = []
+        for it in lent_items:
+            last_log = (
+                it.location_logs.filter(location=it.location)
+                .order_by('-moved_at').first()
+            )
+            return_by = last_log.return_by if last_log else None
+            lent_info.append({
+                'item': it,
+                'location': it.location,
+                'return_by': return_by,
+                'note': last_log.note if last_log else '',
+                'overdue': bool(return_by and return_by < today),
+            })
+        # Sort: overdue first (most overdue), then upcoming by date, then name.
+        lent_info.sort(key=lambda x: (
+            not x['overdue'],
+            x['return_by'] or _date.max,
+            x['item'].name.lower(),
+        ))
+
         context = {
             'item_count': len(items),
             'location_count': len(locations),
             'collection_tree': roots,
             'orphan_items': orphan_items,
             'recent_moves': recent_moves,
-            'due_back': due_back,
+            'lent_info': lent_info,
         }
         return render(request, 'home.html', context)
     return render(request, 'home.html')
